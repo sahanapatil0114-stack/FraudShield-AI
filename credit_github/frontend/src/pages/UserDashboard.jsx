@@ -36,6 +36,20 @@ const chartDefaults = {
 
 const TABS = ['overview', 'detect', 'upload', 'history', 'profile']
 
+const EMPTY_ANALYTICS = {
+  summary: {
+    total_transactions: 0,
+    fraud_count: 0,
+    safe_count: 0,
+    pending_count: 0,
+    avg_fraud_probability: 0,
+  },
+  risk_distribution: [],
+  daily_trend: [],
+}
+
+const n = (v) => Number(v ?? 0)
+
 export default function UserDashboard() {
   const { user } = useAuth()
   const [activeTab, setActiveTab] = useState('overview')
@@ -44,21 +58,33 @@ export default function UserDashboard() {
   const [loading,    setLoading]    = useState(true)
 
   const loadData = useCallback(async () => {
+    if (!user?.id) return
+    setLoading(true)
     try {
-      const [aRes, tRes] = await Promise.all([
+      const [aRes, tRes] = await Promise.allSettled([
         analyticsAPI.get(),
-        txnAPI.list({ limit: 200 })
+        txnAPI.list({ limit: 100 }),
       ])
-      setAnalytics(aRes.data.data)
-      setTxns(tRes.data.data?.transactions || [])
+
+      let analyticsData = EMPTY_ANALYTICS
+      let txnList = []
+
+      if (aRes.status === 'fulfilled') {
+        analyticsData = aRes.value.data.data
+      }
+      if (tRes.status === 'fulfilled') {
+        txnList = tRes.value.data.data?.transactions || []
+      }
+
+      setAnalytics(analyticsData)
+      setTxns(txnList)
     } catch {
-      // Use mock data if backend unavailable
-      setAnalytics(MOCK_ANALYTICS)
-      setTxns(MOCK_TRANSACTIONS)
+      setAnalytics(EMPTY_ANALYTICS)
+      setTxns([])
     } finally {
       setLoading(false)
     }
-  }, [])
+  }, [user?.id])
 
   useEffect(() => { loadData() }, [loadData])
 
@@ -66,14 +92,16 @@ export default function UserDashboard() {
   const dailyTrend = analytics?.daily_trend || []
 
   // Chart data
+  const hasData = n(summary.total_transactions) > 0 || txns.length > 0
+
   const lineData = {
     labels: dailyTrend.length > 0
       ? dailyTrend.map(d => new Date(d.date).toLocaleDateString('en', { month: 'short', day: 'numeric' }))
-      : ['Jan 15', 'Jan 16', 'Jan 17', 'Jan 18', 'Jan 19', 'Jan 20', 'Jan 21'],
+      : ['No data'],
     datasets: [
       {
         label: 'Safe',
-        data: dailyTrend.length > 0 ? dailyTrend.map(d => d.safe) : [8, 12, 6, 15, 9, 14, 11],
+        data: dailyTrend.length > 0 ? dailyTrend.map(d => n(d.safe)) : [0],
         borderColor: '#00ff88',
         backgroundColor: 'rgba(0,255,136,0.08)',
         fill: true,
@@ -83,7 +111,7 @@ export default function UserDashboard() {
       },
       {
         label: 'Fraud',
-        data: dailyTrend.length > 0 ? dailyTrend.map(d => d.fraud) : [2, 1, 3, 0, 2, 1, 3],
+        data: dailyTrend.length > 0 ? dailyTrend.map(d => n(d.fraud)) : [0],
         borderColor: '#ff2d78',
         backgroundColor: 'rgba(255,45,120,0.08)',
         fill: true,
@@ -98,9 +126,9 @@ export default function UserDashboard() {
     labels: ['Low Risk', 'Medium Risk', 'High Risk'],
     datasets: [{
       data: [
-        analytics?.risk_distribution?.find(r => r.risk_level === 'low')?.count || 14,
-        analytics?.risk_distribution?.find(r => r.risk_level === 'medium')?.count || 4,
-        analytics?.risk_distribution?.find(r => r.risk_level === 'high')?.count || 7,
+        n(analytics?.risk_distribution?.find(r => r.risk_level === 'low')?.count),
+        n(analytics?.risk_distribution?.find(r => r.risk_level === 'medium')?.count),
+        n(analytics?.risk_distribution?.find(r => r.risk_level === 'high')?.count),
       ],
       backgroundColor: ['rgba(0,255,136,0.7)', 'rgba(255,214,10,0.7)', 'rgba(255,45,120,0.7)'],
       borderColor: ['#00ff88', '#ffd60a', '#ff2d78'],
@@ -162,10 +190,10 @@ export default function UserDashboard() {
               ) : (
                 <>
                   <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-                    <StatsCard title="Total Transactions" value={summary.total_transactions || 25} icon="💳" color="blue" />
-                    <StatsCard title="Fraud Detected"    value={summary.fraud_count        || 7}  icon="🚨" color="pink" />
-                    <StatsCard title="Safe Transactions" value={summary.safe_count         || 16} icon="✅" color="green" />
-                    <StatsCard title="Avg Fraud Risk"    value={`${((summary.avg_fraud_probability || 0.32) * 100).toFixed(0)}%`} icon="📈" color="purple" />
+                    <StatsCard title="Total Transactions" value={n(summary.total_transactions)} icon="💳" color="blue" />
+                    <StatsCard title="Fraud Detected"    value={n(summary.fraud_count)} icon="🚨" color="pink" />
+                    <StatsCard title="Safe Transactions" value={n(summary.safe_count)} icon="✅" color="green" />
+                    <StatsCard title="Avg Fraud Risk"    value={`${(n(summary.avg_fraud_probability) * 100).toFixed(0)}%`} icon="📈" color="purple" />
                   </div>
 
                   <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -190,6 +218,9 @@ export default function UserDashboard() {
                       <button onClick={() => setActiveTab('history')} className="text-xs text-neon-blue/60 hover:text-neon-blue">View All →</button>
                     </div>
                     <div className="space-y-2">
+                      {!hasData && (
+                        <p className="text-white/30 text-sm text-center py-6">No transactions yet. Use Detect or Upload CSV to get started.</p>
+                      )}
                       {txns.slice(0, 5).map(t => (
                         <div key={t.id} className="flex items-center gap-3 py-2 border-b border-white/4 last:border-0">
                           <div className={`w-8 h-8 rounded-lg flex items-center justify-center text-sm ${t.status === 'fraud' ? 'bg-neon-pink/10 border border-neon-pink/20' : 'bg-neon-green/10 border border-neon-green/20'}`}>
@@ -281,8 +312,8 @@ export default function UserDashboard() {
                     { label: 'Email',        val: user?.email },
                     { label: 'Phone',        val: user?.phone || 'Not set' },
                     { label: 'Role',         val: user?.role?.toUpperCase() },
-                    { label: 'Total Transactions', val: summary.total_transactions || txns.length },
-                    { label: 'Fraud Detected',     val: summary.fraud_count || txns.filter(t => t.status === 'fraud').length },
+                    { label: 'Total Transactions', val: n(summary.total_transactions) || txns.length },
+                    { label: 'Fraud Detected',     val: n(summary.fraud_count) || txns.filter(t => t.status === 'fraud').length },
                   ].map(({ label, val }) => (
                     <div key={label} className="flex items-center justify-between py-3 border-b border-white/5">
                       <span className="text-white/40 text-sm font-cyber text-xs tracking-wider uppercase">{label}</span>
@@ -300,16 +331,3 @@ export default function UserDashboard() {
   )
 }
 
-const MOCK_ANALYTICS = {
-  summary: { total_transactions: 25, fraud_count: 7, safe_count: 16, pending_count: 2, avg_fraud_probability: 0.38 },
-  risk_distribution: [{ risk_level: 'low', count: 14 }, { risk_level: 'medium', count: 4 }, { risk_level: 'high', count: 7 }],
-  daily_trend: [],
-}
-
-const MOCK_TRANSACTIONS = [
-  { id: 1, transaction_ref: 'TXN-20240115-001', amount: 45.99,  merchant: 'Starbucks Coffee',     location: 'New York, NY',    status: 'safe',  risk_level: 'low',  fraud_probability: 0.082, transaction_time: '2024-01-15T09:23:00' },
-  { id: 2, transaction_ref: 'TXN-20240115-002', amount: 5847.00, merchant: 'Unknown Merchant #4821', location: 'Lagos, Nigeria', status: 'fraud', risk_level: 'high', fraud_probability: 0.923, transaction_time: '2024-01-15T03:14:00' },
-  { id: 3, transaction_ref: 'TXN-20240116-003', amount: 129.99,  merchant: 'Amazon Prime',          location: 'Seattle, WA',    status: 'safe',  risk_level: 'low',  fraud_probability: 0.051, transaction_time: '2024-01-16T14:05:00' },
-  { id: 4, transaction_ref: 'TXN-20240117-004', amount: 2800.00, merchant: 'Crypto Exchange XYZ',   location: 'Unknown',        status: 'fraud', risk_level: 'high', fraud_probability: 0.879, transaction_time: '2024-01-17T02:47:00' },
-  { id: 5, transaction_ref: 'TXN-20240118-005', amount: 78.50,   merchant: 'Shell Gas Station',     location: 'Chicago, IL',    status: 'safe',  risk_level: 'low',  fraud_probability: 0.102, transaction_time: '2024-01-18T11:30:00' },
-]

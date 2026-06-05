@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, useEffect } from 'react'
+import { createContext, useContext, useState, useEffect, useMemo, useCallback } from 'react'
 import { authAPI } from '../api/backend'
 
 const AuthContext = createContext(null)
@@ -17,26 +17,29 @@ export function AuthProvider({ children }) {
   const [user, setUser]       = useState(null)
   const [loading, setLoading] = useState(true)
 
-  // Restore session: try backend first, then localStorage
+  // Restore session once — no double-set flicker from localStorage then /me
   useEffect(() => {
-    const stored = localStorage.getItem(SESSION_KEY)
-    if (stored) {
-      try { setUser(JSON.parse(stored)) } catch {}
-    }
-
     authAPI.me()
       .then(res => {
         const u = res.data.data
         setUser(u)
         localStorage.setItem(SESSION_KEY, JSON.stringify(u))
       })
-      .catch(() => {
-        // Backend offline — keep localStorage session silently
+      .catch((err) => {
+        if (err.response?.status === 401) {
+          localStorage.removeItem(SESSION_KEY)
+          setUser(null)
+        } else if (!err.response) {
+          const stored = localStorage.getItem(SESSION_KEY)
+          if (stored) {
+            try { setUser(JSON.parse(stored)) } catch {}
+          }
+        }
       })
       .finally(() => setLoading(false))
   }, [])
 
-  const login = async (email, password) => {
+  const login = useCallback(async (email, password) => {
     try {
       // Try real backend first
       const res = await authAPI.login({ email, password })
@@ -57,9 +60,9 @@ export function AuthProvider({ children }) {
       // Backend offline & wrong credentials
       throw new Error('Invalid email or password (Demo: use "password")')
     }
-  }
+  }, [])
 
-  const register = async (name, email, password, phone) => {
+  const register = useCallback(async (name, email, password, phone) => {
     try {
       const res = await authAPI.register({ name, email, password, phone })
       return res.data
@@ -70,16 +73,21 @@ export function AuthProvider({ children }) {
       }
       throw err
     }
-  }
+  }, [])
 
-  const logout = async () => {
+  const logout = useCallback(async () => {
     await authAPI.logout().catch(() => {})
     localStorage.removeItem(SESSION_KEY)
     setUser(null)
-  }
+  }, [])
+
+  const value = useMemo(
+    () => ({ user, loading, login, logout, register, setUser }),
+    [user, loading, login, logout, register]
+  )
 
   return (
-    <AuthContext.Provider value={{ user, loading, login, logout, register, setUser }}>
+    <AuthContext.Provider value={value}>
       {children}
     </AuthContext.Provider>
   )

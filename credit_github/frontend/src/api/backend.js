@@ -9,12 +9,19 @@ const api = axios.create({
   headers: { 'Content-Type': 'application/json' }
 })
 
-// Intercept 401 → redirect to login
+// Intercept 401 — clear stale session; avoid hard reload loops on /me checks
 api.interceptors.response.use(
   res => res,
   err => {
     if (err.response?.status === 401) {
-      window.location.href = '/login'
+      const url = err.config?.url || ''
+      const onLoginPage = window.location.pathname === '/login'
+      if (url.includes('/me.php')) {
+        localStorage.removeItem('fraudshield_user')
+      } else if (!onLoginPage) {
+        localStorage.removeItem('fraudshield_user')
+        window.location.href = '/login'
+      }
     }
     return Promise.reject(err)
   }

@@ -13,9 +13,9 @@ handlePreflight();
 $user = requireAuth();
 $db   = getDB();
 
-$userId = $user['role'] === 'admin' ? null : $user['id'];
+$userId = $user['role'] === 'admin' ? null : (int)$user['id'];
 $userFilter = $userId ? "WHERE user_id = $userId" : "";
-$txnFilter  = $userId ? "AND t.user_id = $userId" : "";
+$txnFilter  = $userId ? "AND user_id = $userId" : "";
 
 // ── Summary stats ──────────────────────────────────────────
 $stmt = $db->prepare("
@@ -32,6 +32,13 @@ $stmt = $db->prepare("
 ");
 $stmt->execute();
 $summary = $stmt->fetch();
+$summary['total_transactions']    = (int)($summary['total_transactions'] ?? 0);
+$summary['fraud_count']           = (int)($summary['fraud_count'] ?? 0);
+$summary['safe_count']            = (int)($summary['safe_count'] ?? 0);
+$summary['pending_count']         = (int)($summary['pending_count'] ?? 0);
+$summary['avg_fraud_probability'] = (float)($summary['avg_fraud_probability'] ?? 0);
+$summary['total_amount']          = (float)($summary['total_amount'] ?? 0);
+$summary['fraud_amount']          = (float)($summary['fraud_amount'] ?? 0);
 
 // ── Risk level distribution ────────────────────────────────
 $stmt = $db->prepare("

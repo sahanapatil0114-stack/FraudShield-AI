@@ -12,7 +12,7 @@ import AdminDashboard from './pages/AdminDashboard'
 
 function Layout({ children, showNav = true }) {
   return (
-    <div className="scanline-overlay">
+    <div>
       {showNav && <Navbar />}
       <main>{children}</main>
       <VoiceAssistant />
