@@ -130,7 +130,18 @@ def stats():
         }
     })
 
-
+@app.route('/')
+def home():
+    return jsonify({
+        "message": "FraudShield AI API is running",
+        "status": "online",
+        "endpoints": [
+            "/health",
+            "/detect",
+            "/batch-detect",
+            "/stats"
+        ]
+    })
 if __name__ == '__main__':
     print("=" * 50)
     print("  FraudShield AI - Detection API")
