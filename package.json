@@ -1,0 +1,13 @@
+{
+  "name": "fraudshield-ai",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "install:all": "cd frontend && npm install && cd ../server && npm install",
+    "build": "cd frontend && npm run build",
+    "start": "cd server && node index.js",
+    "dev:server": "cd server && npm run dev",
+    "dev:frontend": "cd frontend && npm run dev",
+    "dev": "npm run install:all && npm run build && npm run start"
+  }
+}

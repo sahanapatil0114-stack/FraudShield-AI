@@ -1,0 +1,17 @@
+<?php
+// ============================================================
+// INFINITYFREE — copy to config.local.php and fill in values
+// Upload backend/ folder with this file inside config/
+// ============================================================
+
+// MySQL (from InfinityFree → MySQL Databases)
+define('DB_HOST', 'sqlXXX.infinityfree.com');
+define('DB_NAME', 'if0_XXXXXX_fraudshield');
+define('DB_USER', 'if0_XXXXXX');
+define('DB_PASS', 'your_mysql_password_here');
+
+// Random secret (any long string)
+define('JWT_SECRET', 'change-this-to-something-random-and-long');
+
+// Your Render frontend URL — exact match, no trailing slash
+define('CORS_ORIGIN', 'https://your-app-name.onrender.com');
